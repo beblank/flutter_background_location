@@ -1,14 +1,3 @@
-# flutter_background_location
+# flutter_background_location Plugin for Flutter (Android only)
 
-A Flutter plugin to get location updates when application is in background.
-
-## Getting Started
-
-This project is a starting point for a Flutter
-[plug-in package](https://flutter.dev/developing-packages/),
-a specialized package that includes platform-specific implementation code for
-Android and/or iOS.
-
-For help getting started with Flutter, view our 
-[online documentation](https://flutter.dev/docs), which offers tutorials, 
-samples, guidance on mobile development, and a full API reference.
+A Flutter plugin to get location updates even when application is not in foreground. I developed this for a personal project to get location updates on Android (I don't own a mac), So it'll just work with android.
