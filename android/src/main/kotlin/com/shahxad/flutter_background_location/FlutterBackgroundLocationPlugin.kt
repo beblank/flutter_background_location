@@ -144,6 +144,7 @@ class FlutterBackgroundLocationPlugin() : MethodCallHandler, PluginRegistry.Requ
                 locationMap["altitude"] = location.altitude
                 locationMap["accuracy"] = location.accuracy.toDouble()
                 locationMap["bearing"] = location.bearing.toDouble()
+                locationMap["speed"] = location.speed.toDouble()
                 channel.invokeMethod("location", locationMap, null)
             }
         }

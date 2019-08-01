@@ -14,6 +14,7 @@ class _MyAppState extends State<MyApp> {
   String altitude = "waiting...";
   String accuracy = "waiting...";
   String bearing = "waiting...";
+  String speed = "waiting...";
 
   @override
   void initState() {
@@ -27,6 +28,7 @@ class _MyAppState extends State<MyApp> {
         this.accuracy = location.accuracy.toString();
         this.altitude = location.altitude.toString();
         this.bearing = location.bearing.toString();
+        this.speed = location.speed.toString();
       });
 
       print("""
@@ -35,6 +37,7 @@ class _MyAppState extends State<MyApp> {
       Altitude: $altitude
       Accuracy: $accuracy
       Bearing:  $bearing
+      Speed: $speed
       """);
     });
   }
@@ -54,6 +57,7 @@ class _MyAppState extends State<MyApp> {
               locationData("Altitude: " + altitude),
               locationData("Accuracy: " + accuracy),
               locationData("Bearing: " + bearing),
+              locationData("Speed: " + speed),
               RaisedButton(
                   onPressed: () {
                     FlutterBackgroundLocation.startLocationService();

@@ -24,6 +24,7 @@ class FlutterBackgroundLocation {
       _location.accuracy = location.accuracy;
       _location.altitude = location.altitude;
       _location.bearing = location.bearing;
+      _location.speed = location.speed;
       completer.complete(_location);
     });
     return completer.future;
@@ -38,7 +39,8 @@ class FlutterBackgroundLocation {
             longitude: locationData["longitude"],
             altitude: locationData["altitude"],
             accuracy: locationData["accuracy"],
-            bearing: locationData["bearing"]));
+            bearing: locationData["bearing"],
+            speed: locationData["speed"]));
       }
     });
   }
@@ -50,11 +52,13 @@ class _Location {
         this.latitude,
         this.altitude,
         this.accuracy,
-        this.bearing});
+        this.bearing,
+        this.speed});
 
   double latitude;
   double longitude;
   double altitude;
   double bearing;
   double accuracy;
+  double speed;
 }
