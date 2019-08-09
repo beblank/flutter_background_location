@@ -1,10 +1,6 @@
 name: flutter_background_location
 description: A Flutter plugin to get location updates when application is in background.
-<<<<<<< HEAD
-version: 0.0.2
-=======
-version: 0.0.1
->>>>>>> 561f98fe0aa4e1bec6c8a7a1baef781cdf62f069
+version: 0.0.3
 author: Shahzad Akram <shahxadakram@gmail.com>
 homepage: https://github.com/shah-xad/flutter_background_location
 
