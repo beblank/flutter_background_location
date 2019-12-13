@@ -6,12 +6,37 @@ public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLo
     static var locationManager: CLLocationManager?
     static var channel: FlutterMethodChannel?
 
+
+    private let MaxBGTime: TimeInterval = 5
+    private let MinBGTime: TimeInterval = 2
+    private let MinAcceptableLocationAccuracy: CLLocationAccuracy = 5
+    private let WaitForLocationsTime: TimeInterval = 3
+    
+    private let manager = CLLocationManager()
+    
+    private var isManagerRunning = false
+    private var checkLocationTimer: Timer?
+    private var waitTimer: Timer?
+    private var bgTask: UIBackgroundTaskIdentifier = UIBackgroundTaskIdentifier.invalid
+    private var lastLocations = [CLLocation]()
+    
+    public private(set) var acceptableLocationAccuracy: CLLocationAccuracy = 100
+    public private(set) var checkLocationInterval: TimeInterval = 10
+    public private(set) var isRunning = false
+
     public static func register(with registrar: FlutterPluginRegistrar) {
         let instance = SwiftFlutterBackgroundLocationPlugin()
 
         SwiftFlutterBackgroundLocationPlugin.channel = FlutterMethodChannel(name: "flutter_background_location", binaryMessenger: registrar.messenger())
         registrar.addMethodCallDelegate(instance, channel: SwiftFlutterBackgroundLocationPlugin.channel!)
         SwiftFlutterBackgroundLocationPlugin.channel?.setMethodCallHandler(instance.handle)
+        configureLocationManager();
+    }
+    
+    private func configureLocationManager(){
+        manager.allowsBackgroundLocationUpdates = true
+        manager.pausesLocationUpdatesAutomatically = false
+        manager.delegate = self
     }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -22,19 +47,25 @@ public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLo
 
         if (call.method == "start_location_service") {
             SwiftFlutterBackgroundLocationPlugin.channel?.invokeMethod("location", arguments: "start_location_service")
-            SwiftFlutterBackgroundLocationPlugin.locationManager?.startUpdatingLocation()
+            manager.startUpdatingLocation(interval: 2, acceptableLocationAccuracy: 100)
         } else if (call.method == "stop_location_service") {
             SwiftFlutterBackgroundLocationPlugin.channel?.invokeMethod("location", arguments: "stop_location_service")
-            SwiftFlutterBackgroundLocationPlugin.locationManager?.stopUpdatingLocation()
+            stopUpdatingLocation()
         }
     }
-
+    
     public func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
-        if status == .authorizedAlways {
-
+        if CLLocationManager.authorizationStatus() == .denied{
+            print("Location service is disable...")
+        }else{
+            startLocationTracking()
         }
     }
-
+    
+    public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("Location Error \(error.localizedDescription)")
+    }
+    
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         let location = [
             "speed": locations.last!.speed,
@@ -44,7 +75,165 @@ public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLo
             "accuracy": locations.last!.horizontalAccuracy,
             "bearing": locations.last!.course
         ] as [String : Any]
+        
+        if waitTimer == nil {
+            startWaitTimer()
+        }
 
         SwiftFlutterBackgroundLocationPlugin.channel?.invokeMethod("location", arguments: location)
+    }
+    
+    public func requestAlwaysAuthorization() {
+        manager.requestAlwaysAuthorization()
+    }
+    
+    public func startUpdatingLocation(interval: TimeInterval, acceptableLocationAccuracy: CLLocationAccuracy = 100) {
+        
+        if isRunning {
+            stopUpdatingLocation()
+        }
+        
+        checkLocationInterval -= WaitForLocationsTime
+        checkLocationInterval = interval > MaxBGTime ? MaxBGTime : interval
+        checkLocationInterval = interval < MinBGTime ? MinBGTime : interval
+        
+        self.acceptableLocationAccuracy = acceptableLocationAccuracy < MinAcceptableLocationAccuracy ? MinAcceptableLocationAccuracy : acceptableLocationAccuracy
+        
+        isRunning = true
+        
+        addNotifications()
+        startLocationManager()
+    }
+    
+    public func stopUpdatingLocation() {
+        isRunning = false
+        stopWaitTimer()
+        stopLocationManager()
+        stopBackgroundTask()
+        stopCheckLocationTimer()
+        removeNotifications()
+    }
+    
+    private func addNotifications() {
+        
+        removeNotifications()
+        
+        NotificationCenter.default.addObserver(self, selector:  #selector(applicationDidEnterBackground),
+                                               name: UIApplication.didEnterBackgroundNotification,
+                                               object: nil)
+        NotificationCenter.default.addObserver(self, selector:  #selector(applicationDidBecomeActive),
+                                               name: UIApplication.didBecomeActiveNotification,
+                                               object: nil)
+    }
+    
+    private func removeNotifications() {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    private func startLocationManager() {
+        isManagerRunning = true
+        manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
+        manager.distanceFilter = 5
+        manager.startUpdatingLocation()
+    }
+    
+    private func pauseLocationManager(){
+        manager.desiredAccuracy = kCLLocationAccuracyThreeKilometers
+        manager.distanceFilter = 99999
+    }
+    private func stopLocationManager() {
+        isManagerRunning = false
+        manager.stopUpdatingLocation()
+    }
+    
+    @objc func applicationDidEnterBackground() {
+        stopBackgroundTask()
+        startBackgroundTask()
+    }
+    
+    @objc func applicationDidBecomeActive() {
+        stopBackgroundTask()
+    }
+    
+    private func startCheckLocationTimer() {
+        
+        stopCheckLocationTimer()
+        
+        checkLocationTimer = Timer.scheduledTimer(timeInterval: checkLocationInterval, target: self, selector: #selector(checkLocationTimerEvent), userInfo: nil, repeats: false)
+    }
+    
+    private func stopCheckLocationTimer() {
+        if let timer = checkLocationTimer {
+            timer.invalidate()
+            checkLocationTimer=nil
+        }
+    }
+    
+    @objc func checkLocationTimerEvent() {
+        stopCheckLocationTimer()
+        startLocationManager()
+        
+        // starting from iOS 7 and above stop background task with delay, otherwise location service won't start
+        self.perform(#selector(stopAndResetBgTaskIfNeeded), with: nil, afterDelay: 1)
+    }
+    
+    private func startWaitTimer() {
+        stopWaitTimer()
+        
+        waitTimer = Timer.scheduledTimer(timeInterval: WaitForLocationsTime, target: self, selector: #selector(waitTimerEvent), userInfo: nil, repeats: false)
+    }
+    
+    private func stopWaitTimer() {
+        
+        if let timer = waitTimer {
+            
+            timer.invalidate()
+            waitTimer=nil
+        }
+    }
+    
+    @objc func waitTimerEvent() {
+        
+        stopWaitTimer()
+        
+        if acceptableLocationAccuracyRetrieved() {
+            startBackgroundTask()
+            startCheckLocationTimer()
+            pauseLocationManager()
+            delegate.scheduledLocationManager(self, didUpdateLocations: lastLocations)
+        }else{
+            startWaitTimer()
+        }
+    }
+    
+    private func acceptableLocationAccuracyRetrieved() -> Bool {
+        let location = lastLocations.last!
+        return location.horizontalAccuracy <= acceptableLocationAccuracy ? true : false
+    }
+    
+    @objc func stopAndResetBgTaskIfNeeded()  {
+        
+        if isManagerRunning {
+            stopBackgroundTask()
+        }else{
+            stopBackgroundTask()
+            startBackgroundTask()
+        }
+    }
+    
+    private func startBackgroundTask() {
+        let state = UIApplication.shared.applicationState
+        
+        if ((state == .background || state == .inactive) && bgTask == UIBackgroundTaskIdentifier.invalid) {
+            bgTask = UIApplication.shared.beginBackgroundTask(expirationHandler: {
+                self.checkLocationTimerEvent()
+            })
+        }
+    }
+    
+    @objc private func stopBackgroundTask() {
+        guard bgTask != UIBackgroundTaskIdentifier.invalid else { return }
+        UIApplication.shared.endBackgroundTask(bgTask)
+        bgTask = UIBackgroundTaskIdentifier.invalid
     }
 }
