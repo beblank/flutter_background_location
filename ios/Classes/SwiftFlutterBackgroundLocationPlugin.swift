@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import CoreLocation
+import Foundation
 
 public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLocationManagerDelegate {
     static var locationManager: CLLocationManager?
@@ -17,7 +18,7 @@ public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLo
     private var isManagerRunning = false
     private var checkLocationTimer: Timer?
     private var waitTimer: Timer?
-    private var bgTask: UIBackgroundTaskIdentifier = UIBackgroundTaskIdentifier.invalid
+    private var bgTask: UIBackgroundTaskIdentifier = UIBackgroundTaskInvalid
     private var lastLocations = [CLLocation]()
     
     public private(set) var acceptableLocationAccuracy: CLLocationAccuracy = 100
@@ -30,13 +31,8 @@ public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLo
         SwiftFlutterBackgroundLocationPlugin.channel = FlutterMethodChannel(name: "flutter_background_location", binaryMessenger: registrar.messenger())
         registrar.addMethodCallDelegate(instance, channel: SwiftFlutterBackgroundLocationPlugin.channel!)
         SwiftFlutterBackgroundLocationPlugin.channel?.setMethodCallHandler(instance.handle)
-        configureLocationManager();
-    }
-    
-    private func configureLocationManager(){
-        manager.allowsBackgroundLocationUpdates = true
-        manager.pausesLocationUpdatesAutomatically = false
-        manager.delegate = self
+       
+      
     }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -44,10 +40,14 @@ public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLo
         SwiftFlutterBackgroundLocationPlugin.locationManager?.delegate = self
         SwiftFlutterBackgroundLocationPlugin.locationManager?.requestAlwaysAuthorization()
         SwiftFlutterBackgroundLocationPlugin.channel?.invokeMethod("location", arguments: "method")
+        
+        manager.allowsBackgroundLocationUpdates = true
+        manager.pausesLocationUpdatesAutomatically = false
+        manager.delegate = self
 
         if (call.method == "start_location_service") {
             SwiftFlutterBackgroundLocationPlugin.channel?.invokeMethod("location", arguments: "start_location_service")
-            manager.startUpdatingLocation(interval: 2, acceptableLocationAccuracy: 100)
+            manager.startUpdatingLocation()
         } else if (call.method == "stop_location_service") {
             SwiftFlutterBackgroundLocationPlugin.channel?.invokeMethod("location", arguments: "stop_location_service")
             stopUpdatingLocation()
@@ -59,6 +59,16 @@ public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLo
             print("Location service is disable...")
         }else{
             startLocationTracking()
+        }
+    }
+    
+    func startLocationTracking(){
+        if CLLocationManager.authorizationStatus() == .authorizedAlways ||  CLLocationManager.authorizationStatus() == .authorizedWhenInUse{
+            manager.startUpdatingLocation()
+        }else if CLLocationManager.authorizationStatus() == .denied{
+            print("Location service is disable")
+        }else{
+            manager.requestAlwaysAuthorization()
         }
     }
     
@@ -119,10 +129,10 @@ public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLo
         removeNotifications()
         
         NotificationCenter.default.addObserver(self, selector:  #selector(applicationDidEnterBackground),
-                                               name: UIApplication.didEnterBackgroundNotification,
+                                               name: NSNotification.Name.UIApplicationDidEnterBackground,
                                                object: nil)
         NotificationCenter.default.addObserver(self, selector:  #selector(applicationDidBecomeActive),
-                                               name: UIApplication.didBecomeActiveNotification,
+                                               name: NSNotification.Name.UIApplicationDidBecomeActive,
                                                object: nil)
     }
     
@@ -196,20 +206,19 @@ public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLo
         
         stopWaitTimer()
         
-        if acceptableLocationAccuracyRetrieved() {
+//        if acceptableLocationAccuracyRetrieved() {
             startBackgroundTask()
             startCheckLocationTimer()
             pauseLocationManager()
-            delegate.scheduledLocationManager(self, didUpdateLocations: lastLocations)
-        }else{
-            startWaitTimer()
-        }
+//        }else{
+//            startWaitTimer()
+//        }
     }
     
-    private func acceptableLocationAccuracyRetrieved() -> Bool {
-        let location = lastLocations.last!
-        return location.horizontalAccuracy <= acceptableLocationAccuracy ? true : false
-    }
+//    private func acceptableLocationAccuracyRetrieved() -> Bool {
+//        let location = lastLocations.last!
+//        return location.horizontalAccuracy <= acceptableLocationAccuracy ? true : false
+//    }
     
     @objc func stopAndResetBgTaskIfNeeded()  {
         
@@ -224,7 +233,7 @@ public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLo
     private func startBackgroundTask() {
         let state = UIApplication.shared.applicationState
         
-        if ((state == .background || state == .inactive) && bgTask == UIBackgroundTaskIdentifier.invalid) {
+        if ((state == .background || state == .inactive) && bgTask == UIBackgroundTaskInvalid) {
             bgTask = UIApplication.shared.beginBackgroundTask(expirationHandler: {
                 self.checkLocationTimerEvent()
             })
@@ -232,8 +241,8 @@ public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLo
     }
     
     @objc private func stopBackgroundTask() {
-        guard bgTask != UIBackgroundTaskIdentifier.invalid else { return }
+        guard bgTask != UIBackgroundTaskInvalid else { return }
         UIApplication.shared.endBackgroundTask(bgTask)
-        bgTask = UIBackgroundTaskIdentifier.invalid
+        bgTask = UIBackgroundTaskInvalid
     }
 }
