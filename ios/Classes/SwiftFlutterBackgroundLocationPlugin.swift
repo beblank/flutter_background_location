@@ -8,10 +8,10 @@ public class SwiftFlutterBackgroundLocationPlugin: NSObject, FlutterPlugin, CLLo
     static var channel: FlutterMethodChannel?
 
 
-    private let MaxBGTime: TimeInterval = 5
-    private let MinBGTime: TimeInterval = 2
+    private let MaxBGTime: TimeInterval = 300
+    private let MinBGTime: TimeInterval = 120
     private let MinAcceptableLocationAccuracy: CLLocationAccuracy = 5
-    private let WaitForLocationsTime: TimeInterval = 3
+    private let WaitForLocationsTime: TimeInterval = 60
     
     private let manager = CLLocationManager()
     
